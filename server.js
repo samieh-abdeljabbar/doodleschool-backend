@@ -4,6 +4,8 @@ const axios = require('axios');
 require('dotenv').config();
 
 const app = express();
+app.set('trust proxy', 1); // <-- Fixes rate limit warning on Railway and other cloud hosts
+
 const PORT = process.env.PORT || 3000;
 
 // Middleware
@@ -13,7 +15,7 @@ app.use(express.json());
 // Your OpenAI API key (stored securely in environment variables)
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-// Rate limiting (optional)
+// Rate limiting (optional, but recommended)
 const rateLimit = require('express-rate-limit');
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
@@ -25,11 +27,11 @@ app.use('/api/generate-coloring-page', limiter);
 app.post('/api/generate-coloring-page', async (req, res) => {
     try {
         const { prompt, size = "1024x1024" } = req.body;
-        
+
         if (!prompt) {
             return res.status(400).json({ error: 'Prompt is required' });
         }
-        
+
         // Call OpenAI API
         const response = await axios.post('https://api.openai.com/v1/images/generations', {
             prompt: prompt,
@@ -42,20 +44,20 @@ app.post('/api/generate-coloring-page', async (req, res) => {
                 'Content-Type': 'application/json'
             }
         });
-        
+
         const imageUrl = response.data.data[0].url;
-        
+
         // Download the image and return it directly
         const imageResponse = await axios.get(imageUrl, {
             responseType: 'arraybuffer'
         });
-        
+
         res.set('Content-Type', 'image/png');
         res.send(imageResponse.data);
-        
+
     } catch (error) {
         console.error('Error generating image:', error.response?.data || error.message);
-        
+
         if (error.response?.status === 401) {
             res.status(401).json({ error: 'Authentication failed' });
         } else if (error.response?.status === 429) {
